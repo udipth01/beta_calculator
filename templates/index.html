@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Portfolio Beta Calculator</title>
+  <script src="/static/app.js" defer></script>
+  <style>
+    body { font-family: Arial; max-width: 900px; margin: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background: #f4f4f4; }
+  </style>
+</head>
+<body>
+
+<h1>📊 Portfolio Beta Calculator</h1>
+
+<label>Upload Portfolio CSV</label><br>
+<input type="file" id="file"><br><br>
+
+<label>Valuation Date (optional)</label><br>
+<input type="date" id="valuation_date"><br><br>
+
+<button onclick="calculate()">Calculate Beta</button>
+
+<hr>
+
+<h2 id="summary"></h2>
+
+<table id="result-table"></table>
+
+</body>
+</html>
