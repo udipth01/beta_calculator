@@ -7,3 +7,7 @@ requests
 python-multipart
 openpyxl
 zeep
+jinja2
+xlsxwriter
+pytz
+python-dateutil
