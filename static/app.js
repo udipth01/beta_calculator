@@ -1,46 +1,78 @@
 async function calculate() {
-  const fileInput = document.getElementById("file");
+  const fileInput = document.querySelector('input[type="file"]');
   const dateInput = document.getElementById("valuation_date");
 
   if (!fileInput.files.length) {
-    alert("Please upload a file");
+    alert("Please upload at least one file");
     return;
   }
 
   const formData = new FormData();
-  formData.append("file", fileInput.files[0]);
+
+  // IMPORTANT: key must be `files`
+  for (const file of fileInput.files) {
+    formData.append("files", file);
+  }
 
   let url = "/portfolio/beta";
   if (dateInput.value) {
     url += `?valuation_date=${dateInput.value}`;
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    body: formData
-  });
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData
+    });
 
-  const data = await response.json();
+    const data = await response.json();
 
-  if (!response.ok) {
-    alert(data.detail || "Error");
+    if (!response.ok) {
+      alert(data.detail || "Error calculating beta");
+      return;
+    }
+
+    renderResult(data);
+  } catch (err) {
+    console.error(err);
+    alert("Server error");
+  }
+}
+
+function renderResult(data) {
+  const summary = document.getElementById("summary");
+  const table = document.getElementById("result-table");
+
+  summary.innerHTML = `
+    Portfolio Beta: <b>${data.portfolio_beta}</b><br>
+    Total Value: <b>₹${data.total_value}</b>
+  `;
+
+  table.innerHTML = "";
+
+  if (!data.details || !data.details.length) {
+    table.innerHTML = "<tr><td>No data</td></tr>";
     return;
   }
 
-  document.getElementById("summary").innerText =
-    `Portfolio Beta: ${data.portfolio_beta} | Total Value: ₹${data.total_value}`;
-
-  const table = document.getElementById("result-table");
-  table.innerHTML = "";
-
-  if (!data.details.length) return;
-
   const headers = Object.keys(data.details[0]);
-  table.innerHTML += "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
+  const thead = document.createElement("tr");
+
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    thead.appendChild(th);
+  });
+
+  table.appendChild(thead);
 
   data.details.forEach(row => {
-    table.innerHTML += "<tr>" +
-      headers.map(h => `<td>${row[h] ?? ""}</td>`).join("") +
-      "</tr>";
+    const tr = document.createElement("tr");
+    headers.forEach(h => {
+      const td = document.createElement("td");
+      td.textContent = row[h] ?? "";
+      tr.appendChild(td);
+    });
+    table.appendChild(tr);
   });
 }
