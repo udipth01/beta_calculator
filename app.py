@@ -1,66 +1,88 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from datetime import date
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 import pandas as pd
 import io
+from typing import List, Optional
+from datetime import date
 
 from portfolio_processor import process_portfolio
 
-app = FastAPI(title="Portfolio Beta Calculator")
-
-# Static + templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app = FastAPI(title="Portfolio Beta API")
 
 
-# -------------------------------
-# Website
-# -------------------------------
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse(
-        "index.html",
-        {"request": request}
-    )
-
-
-# -------------------------------
-# API
-# -------------------------------
 @app.post("/portfolio/beta")
 async def calculate_beta(
-    file: UploadFile = File(...),
-    valuation_date: date | None = Query(None)
+    files: List[UploadFile] = File(...),
+    valuation_date: Optional[date] = Query(
+        None,
+        description="Valuation date for MF amount-based portfolios (YYYY-MM-DD)"
+    )
 ):
-    if not file.filename.lower().endswith((".csv", ".xlsx")):
-        raise HTTPException(400, "Upload CSV or Excel")
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required")
 
-    content = await file.read()
+    dfs = []
 
-    try:
-        if file.filename.lower().endswith(".csv"):
-            df = pd.read_csv(io.StringIO(content.decode()))
-        else:
-            df = pd.read_excel(io.BytesIO(content))
-    except Exception as e:
-        raise HTTPException(400, f"Invalid file: {e}")
+    # -------------------------------
+    # Read & normalize each file
+    # -------------------------------
+    for file in files:
+        if not file.filename.lower().endswith((".csv", ".xlsx")):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file.filename}"
+            )
 
-    df.columns = df.columns.str.strip().str.upper()
+        content = await file.read()
 
-    if "VALUE" in df.columns and "AMOUNT" not in df.columns:
-        df["AMOUNT"] = df["VALUE"]
+        try:
+            if file.filename.lower().endswith(".csv"):
+                df = pd.read_csv(io.StringIO(content.decode()))
+            else:
+                df = pd.read_excel(io.BytesIO(content))
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to read {file.filename}: {e}"
+            )
 
-    if "ISIN" not in df.columns:
-        raise HTTPException(400, "ISIN column missing")
+        # Normalize column names
+        df.columns = df.columns.str.strip().str.upper()
 
-    if not (("QTY" in df.columns) or ("AMOUNT" in df.columns)):
-        raise HTTPException(400, "Need QTY or AMOUNT column")
+        # VALUE → AMOUNT alias
+        if "VALUE" in df.columns and "AMOUNT" not in df.columns:
+            df["AMOUNT"] = df["VALUE"]
 
-    result = process_portfolio(df, valuation_date)
+        if "ISIN" not in df.columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{file.filename} missing ISIN column"
+            )
 
-    if not result or result["portfolio_beta"] is None:
-        raise HTTPException(400, result.get("error", "Unable to calculate beta"))
+        dfs.append(df)
+
+    # -------------------------------
+    # Merge all files
+    # -------------------------------
+    merged_df = pd.concat(dfs, ignore_index=True)
+
+    # -------------------------------
+    # Basic validation
+    # -------------------------------
+    if not (("QTY" in merged_df.columns) or ("AMOUNT" in merged_df.columns)):
+        raise HTTPException(
+            status_code=400,
+            detail="Combined files must contain QTY or AMOUNT column"
+        )
+
+    # -------------------------------
+    # Process portfolio
+    # -------------------------------
+    result = process_portfolio(merged_df, valuation_date)
+
+    if not result or result.get("portfolio_beta") is None:
+        raise HTTPException(
+            status_code=400,
+            detail=result.get("error", "Unable to calculate portfolio beta")
+        )
 
     return result

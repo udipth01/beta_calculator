@@ -71,6 +71,22 @@ def process_portfolio(df: pd.DataFrame, valuation_date: date | None = None):
             df[col] = None
 
     # -------------------------------
+    # Aggregate duplicate ISIN rows
+    # -------------------------------
+    agg_map = {}
+
+    if "QTY" in df.columns:
+        agg_map["QTY"] = "sum"
+    if "AMOUNT" in df.columns:
+        agg_map["AMOUNT"] = "sum"
+
+    df = df.groupby("ISIN", as_index=False).agg(agg_map)
+    # If QTY exists for an ISIN, ignore AMOUNT
+    df.loc[df["QTY"].notna() & (df["QTY"] > 0), "AMOUNT"] = None
+
+
+
+    # -------------------------------
     # Load masters & index
     # -------------------------------
     isin_symbol_map = get_isin_symbol_map()
@@ -103,9 +119,9 @@ def process_portfolio(df: pd.DataFrame, valuation_date: date | None = None):
                 })
                 continue
 
-            if qty_input and qty_input > 0:
+            if qty_input is not None and qty_input > 0:
                 final_qty = qty_input
-            elif amt_input and amt_input > 0:
+            elif amt_input is not None and amt_input > 0:
                 final_qty = amt_input / price
             else:
                 records.append({
@@ -137,9 +153,9 @@ def process_portfolio(df: pd.DataFrame, valuation_date: date | None = None):
                 continue
 
             # Resolve NAV
-            if qty_input and qty_input > 0:
+            if qty_input is not None and qty_input > 0:
                 nav = get_latest_nav(scheme_code)
-            elif amt_input and amt_input > 0:
+            elif amt_input is not None and amt_input > 0:
                 if valuation_date:
                     nav = get_nav_on_date(scheme_code, valuation_date)
                 else:
@@ -162,7 +178,7 @@ def process_portfolio(df: pd.DataFrame, valuation_date: date | None = None):
                 })
                 continue
 
-            final_qty = qty_input if qty_input and qty_input > 0 else amt_input / nav
+            final_qty = qty_input if (qty_input is not None and qty_input > 0) else amt_input / nav
             value = final_qty * nav
             beta = get_mf_beta(scheme_code)
 
