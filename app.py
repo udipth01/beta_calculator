@@ -8,6 +8,8 @@ import pandas as pd
 import io
 from typing import List
 
+from helpers import canonicalize_columns
+from helpers import normalize_broker_dataframe
 from portfolio_processor import process_portfolio
 
 app = FastAPI(title="Portfolio Beta Calculator")
@@ -63,6 +65,15 @@ async def calculate_beta(
                 400,
                 f"Invalid file {file.filename}: {e}"
             )
+        df = normalize_broker_dataframe(df)
+        df = canonicalize_columns(df)
+        # DEBUG SNAPSHOT (TEMPORARY)
+        print(f"\n===== AFTER NORMALIZATION: {file.filename} =====")
+        print(df.head(20))
+        print(df.dtypes)
+        print("Non-null counts:")
+        print(df.notna().sum())
+        print("=============================================\n")
 
         # Normalize columns
         df.columns = df.columns.str.strip().str.upper()
@@ -102,3 +113,10 @@ async def calculate_beta(
         )
 
     return result
+
+@app.post("/debug/normalize")
+async def debug_normalize(file: UploadFile = File(...)):
+    content = await file.read()
+    df = pd.read_excel(io.BytesIO(content))
+    df = normalize_broker_dataframe(df)
+    return df.head(50).to_dict(orient="records")
