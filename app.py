@@ -59,7 +59,7 @@ async def calculate_beta(
             if file.filename.lower().endswith(".csv"):
                 df = pd.read_csv(io.StringIO(content.decode()))
             else:
-                df = pd.read_excel(io.BytesIO(content))
+                df = pd.read_excel(io.BytesIO(content), header=None)
         except Exception as e:
             raise HTTPException(
                 400,
