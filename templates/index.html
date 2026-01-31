@@ -20,7 +20,13 @@
 <label>Valuation Date (optional)</label><br>
 <input type="date" id="valuation_date"><br><br>
 
-<button onclick="calculate()">Calculate Beta</button>
+<button id="calc-btn" onclick="calculate()">Calculate Beta</button>
+
+<p id="status" style="font-weight: bold; margin-top:10px;"></p>
+
+<div id="spinner" style="display:none;">
+  ⏳ Processing portfolio… please wait
+</div>
 
 <hr>
 

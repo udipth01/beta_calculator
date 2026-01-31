@@ -1,15 +1,21 @@
 async function calculate() {
   const fileInput = document.querySelector('input[type="file"]');
   const dateInput = document.getElementById("valuation_date");
+  const status = document.getElementById("status");
+  const spinner = document.getElementById("spinner");
+  const button = document.getElementById("calc-btn");
 
   if (!fileInput.files.length) {
     alert("Please upload at least one file");
     return;
   }
 
-  const formData = new FormData();
+  // UI: start processing
+  status.innerText = "📤 Uploading files…";
+  spinner.style.display = "block";
+  button.disabled = true;
 
-  // IMPORTANT: key must be `files`
+  const formData = new FormData();
   for (const file of fileInput.files) {
     formData.append("files", file);
   }
@@ -20,6 +26,8 @@ async function calculate() {
   }
 
   try {
+    status.innerText = "⚙️ Calculating portfolio beta…";
+
     const response = await fetch(url, {
       method: "POST",
       body: formData
@@ -28,16 +36,25 @@ async function calculate() {
     const data = await response.json();
 
     if (!response.ok) {
+      status.innerText = "❌ Calculation failed";
       alert(data.detail || "Error calculating beta");
       return;
     }
 
     renderResult(data);
+    status.innerText = "✅ Calculation complete";
+
   } catch (err) {
     console.error(err);
+    status.innerText = "❌ Server error";
     alert("Server error");
+
+  } finally {
+    spinner.style.display = "none";
+    button.disabled = false;
   }
 }
+
 
 function renderResult(data) {
   const summary = document.getElementById("summary");
