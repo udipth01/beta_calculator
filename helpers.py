@@ -3,22 +3,40 @@ import pandas as pd
 
 ISIN_REGEX = re.compile(r"^IN[EF][A-Z0-9]{9}$")
 
+# def looks_like_header(row: pd.Series) -> bool:
+#     cells = row.astype(str).str.upper().str.strip()
+
+#     has_isin_label = any(c == "ISIN" for c in cells)
+
+#     has_value_label = any(
+#         any(k in c for k in [
+#             "AMOUNT", "VALUE", "MARKET VALUE",
+#             "NO. OF UNITS", "UNITS", "QTY", "QUANTITY"
+#         ])
+#         for c in cells
+#     )
+#     # print(f"\n===== AFTER NORMALIZATION: {has_isin_label} and {has_value_label} =====")
+
+#     return has_isin_label and has_value_label
+
 def looks_like_header(row: pd.Series) -> bool:
-    cells = row.astype(str).str.upper().str.strip()
+    cells = [
+        str(c).upper().strip()
+        for c in row.tolist()
+        if c is not None and str(c) != "nan"
+    ]
 
-    has_isin_label = any(c == "ISIN" for c in cells)
+    has_isin_label = any(c == "ISIN" or " ISIN" in c for c in cells)
 
-    has_value_label = any(
-        any(k in c for k in [
-            "AMOUNT", "VALUE", "MARKET VALUE",
-            "NO. OF UNITS", "UNITS", "QTY", "QUANTITY"
-        ])
+    has_qty_or_amt = any(
+        any(k in c for k in ["UNIT", "QTY", "QUANTITY", "AMOUNT", "VALUE"])
         for c in cells
     )
-    # print(f"\n===== AFTER NORMALIZATION: {has_isin_label} and {has_value_label} =====")
 
-    return has_isin_label and has_value_label
+    print(f"\n===== HEADER CHECK → ISIN:{has_isin_label}, QTY/AMT:{has_qty_or_amt} =====")
+    print("CELLS:", cells)
 
+    return has_isin_label and has_qty_or_amt
 
 
 
@@ -95,28 +113,44 @@ def canonicalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     return df[["ISIN", "QTY", "AMOUNT"]]
 
+# def normalize_broker_dataframe(raw_df: pd.DataFrame) -> pd.DataFrame:
+#     df = raw_df.copy()
+#     df.columns = df.columns.astype(str).str.upper()
+
+#     # -----------------------------------------
+#     # CASE 1: Already a clean table → skip rebuild
+#     # -----------------------------------------
+#     if any("ISIN" in c for c in df.columns):
+#         print("✅ Detected clean table, skipping header rebuild")
+#         df = canonicalize_columns(df)
+
+#     # -----------------------------------------
+#     # CASE 2: Broker-style sheet → rebuild header
+#     # -----------------------------------------
+#     else:
+#         print("🔍 Detected broker-style sheet, rebuilding header")
+#         df = rebuild_table_from_header(df)
+#         df = canonicalize_columns(df)
+
+#     # -----------------------------------------
+#     # Keep only valid ISIN rows
+#     # -----------------------------------------
+#     df = df[df["ISIN"].str.match(r"^(INE|INF)[A-Z0-9]{9}$", na=False)]
+
+#     return df
+
 def normalize_broker_dataframe(raw_df: pd.DataFrame) -> pd.DataFrame:
     df = raw_df.copy()
     df.columns = df.columns.astype(str).str.upper()
 
-    # -----------------------------------------
-    # CASE 1: Already a clean table → skip rebuild
-    # -----------------------------------------
+    # ✅ Clean table → skip header rebuild
     if any("ISIN" in c for c in df.columns):
-        print("✅ Detected clean table, skipping header rebuild")
+        print("✅ Clean table detected (Render-safe)")
         df = canonicalize_columns(df)
-
-    # -----------------------------------------
-    # CASE 2: Broker-style sheet → rebuild header
-    # -----------------------------------------
     else:
-        print("🔍 Detected broker-style sheet, rebuilding header")
+        print("🔍 Broker-style sheet detected")
         df = rebuild_table_from_header(df)
         df = canonicalize_columns(df)
 
-    # -----------------------------------------
-    # Keep only valid ISIN rows
-    # -----------------------------------------
     df = df[df["ISIN"].str.match(r"^(INE|INF)[A-Z0-9]{9}$", na=False)]
-
     return df
